@@ -1,0 +1,2 @@
+{:lint-as {metaref.async/go-loop clojure.core/loop
+           metaref.async/for-each clojure.core/dotimes}}

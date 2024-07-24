@@ -1,0 +1,234 @@
+(ns metaref.async
+  (:require [clojure.spec.alpha :as s]
+            [clojure.spec.gen.alpha :as gen])
+  (:import  [java.util.concurrent ThreadFactory]
+            [metaref.async Channel CSPChannel ChannelOps ChannelOps$AltResult]))
+
+(set! *warn-on-reflection* true)
+
+(defn chan
+  "Creates a new channel with the given capacity. If no capacity is given,
+   the channel will be unbuffered."
+  (^Channel []
+   (CSPChannel.))
+  (^Channel [^long n]
+   {:pre [(< 0 n)]}
+   (CSPChannel. n)))
+
+(defn channel?
+  "Returns true if the given value is an metaref.async/Channel type, false otherwise."
+  [ch]
+  (instance? Channel ch))
+
+(defn >!
+  "Puts the given value on the channel. If the channel is full, blocks until
+   there is space available.
+   
+   If the put is successful, returns true, otherwise false
+
+   Throws an exception if the value is nil."
+  [ch v]
+  (when (nil? v)
+    (throw (ex-info "Can't put nil on a channel" {})))
+  (.put ^Channel ch v))
+
+(defn <!
+  "Takes a value from the channel. If the channel is empty, blocks until a
+     value is available.
+    
+     If the channel is closed and empty, returns nil."
+  [ch]
+  (.take ^Channel ch))
+
+(defn close!
+  "Closes the channel. Any pending puts will return false. Any pending takes
+   will return a value if available, or nil if the channel is empty."
+  [ch]
+  (.close ^Channel ch))
+
+(defn closed?
+  "Returns true if the channel is closed, false otherwise."
+  [ch]
+  (.isClosed ^Channel ch))
+
+(defonce ^:private ^ThreadFactory vthread-factory
+  (.. Thread
+      (ofVirtual)
+      (name "metaref-async-worker-" 0)
+      (factory)))
+
+(defn vthread-call
+  "Executes the given *function* in a new thread, returning a channel which will
+   contain the result of the function when it completes.
+
+   See metaref.async/go macro for a more convenient way to call this function
+   
+   If the function throws an exception, the channel will contain an ex-info
+   with a data map with keys :exception, :thread and :thread-name.
+   
+   If the function returns nil, the channel will contain the keyword :metaref.async/nil.
+   
+   The thread will be named 'metaref-async-worker-<n>', where <n> is a number
+   "
+  [f]
+  (let [ch     (chan 1)
+        exec-f (bound-fn []
+                 (try
+                   (let [result (f)]
+                     (when-not (nil? result)
+                       (>! ch result)))
+                   (catch Throwable t
+                     (let [thread      (Thread/currentThread)
+                           thread-name (.getName thread)]
+                       (>! ch (ex-info (str "Error in go block: " t)
+                                       {:exception t
+                                        :thread thread
+                                        :thread-name thread-name}))))
+                   (finally
+                     (close! ch))))]
+    (.start
+     (.newThread vthread-factory
+                 exec-f))
+    ch))
+
+(defmacro go
+  "
+   Executes the the expression in a new thread, returning a channel which will
+   contain the result of the body when it completes.
+   
+   If the body throws an exception, the channel will contain an ex-info
+   with a data map with keys :exception, :thread and :thread-name.
+   
+   If the body returns nil, the channel will contain the keyword :metaref.async/nil.
+
+   The thread will be named 'metaref-async-worker-<n>', where <n> is a number
+   "
+  [& body]
+  `(vthread-call (fn [] ~@body)))
+
+
+(defn timeout
+  "Returns a channel which will close after the given number of milliseconds."
+  [ms]
+  (let [ch (chan)]
+    (go
+      (Thread/sleep (long ms))
+      (close! ch))
+    ch))
+
+(defmacro go-loop
+  "Like (go (loop ...))"
+  [bindings & body]
+  `(go (loop ~bindings ~@body)))
+
+;; Notes on spec 
+;; spec'ing args is useful to be able to s/instrument the fn
+;; and have it check the args during dev and test time
+;; can catch malformed calls to the fn and typos
+;; spec'ing with fdef (with :args :ret and :fn) is useful for testing the
+;; _behavior_ of the fn at test time with s/excersice-fn, note that a 
+;; valid generator for the args is required for this to work
+
+;; The first is useful for both users and developers of a library, the second
+;; is mostly useful for developers of a library
+;; Although it requieres the user to have a proper test setup, or at least turn on
+;; instrumentation during dev time, this may need to be encoraged in the docs
+
+;; Another interesting option to help users is to generate clj-kondo annotations 
+;; from the spec, this way the user can get feedback from the editor
+;; without having to run the tests
+;; This is not a replacement for tests, but can be a nice addition
+;; At the moment the user would need to have clj-kondo installed and run a command
+;; to install custom config, or the lib could provide a utility fn to do this
+
+;; (defn chan-gen
+;;   "Generates a sequence of ready channels the length of which is between 1 and 5"
+;;   []
+;;   (gen/fmap (fn [n]
+;;               (let [chs (repeatedly n chan)]
+;;                 (run! #(go (>! % 1)) chs)
+;;                 chs))
+;;             (s/gen (s/int-in 1 5))))
+
+;; (s/def :select/chs (s/with-gen
+;;                      (s/coll-of channel? :min-count 1 :gen-max 5)
+;;                      chan-gen))
+
+;; (s/def :select/opts (s/nilable
+;;                      (s/map-of #{:priority :default} boolean?)))
+
+;; (s/def :select/args (s/cat :chs :select/chs :opts :select/opts))
+
+;; (s/fdef select!
+;;   :args :select/args
+;;   :ret (s/tuple any? (s/nilable channel?))
+;;   :fn #(let [chs (-> % :args :chs)
+;;              opts (-> % :args :opts)
+;;              [val port] (-> % :ret)]
+;;          (cond
+;;            ;;  return value can be nil only if default is true
+;;            (and (not (:default opts)) (nil? val))
+;;            false
+
+;;            ;; port can be nil only if default is true
+;;            (and (not (:default opts)) (nil? port))
+;;            false
+
+;;            ;; port has to be part of chs 
+;;            (and (not (nil? port)) (not (some #{port} chs)))
+;;            false
+
+;;            :else
+;;            true)))
+
+(defn select!
+  "Takes a vector of either a channel or a vector of [channel value]
+   and returns a vector containing the value taken and the channel it was taken from for takes
+   and [true channel] for puts. 
+   If no channel is ready, blocks until one
+   is. If more than one channel is ready, selects one at random.
+   
+   If priority is true, the first channel in the vector will be selected first
+   instead of a random channel.
+
+   If default is supplied, it will be returned if no channel is ready 
+   [default :default] is returned in this case" 
+  [ops & {:keys [priority default] :or {priority false default nil}}]
+  (let [^ChannelOps$AltResult result (ChannelOps/alt ops priority (boolean default))
+        value (.value result)
+        port  (.channel result)]
+    (if (and (nil? value) (nil? port))
+      [default :default]
+      [value port])))
+
+(defn pipe
+  "Takes elements from the from channel and supplies them to the to
+  channel. By default, the to channel will be closed when the from
+  channel closes, but can be determined by the close?  parameter. Will
+  stop consuming the from channel if the to channel closes"
+  ([from to] (pipe from to true))
+  ([from to close?]
+   (go-loop []
+     (let [v (<! from)]
+       (if (nil? v)
+         (when close?
+           (close! to))
+         (when (>! to v)
+           (recur)))))
+   to))
+
+(defmacro for-each
+  "bindings => name channel
+
+  Repeatedly executes body until channel is closed, binding name to
+  each value taken from the channel"
+  [bindings & body]
+  (#'clojure.core/assert-args
+   (vector? bindings) "a vector for its binding"
+   (= 2 (count bindings)) "exactly 2 forms in binding vector")
+  (let [val (first bindings)
+        n   (second bindings)]
+    `(loop [~val (<! ~n)]
+       (when ~val
+         ~@body
+         (recur (<! ~n))))))
