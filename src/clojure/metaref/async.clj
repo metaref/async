@@ -1,8 +1,12 @@
 (ns metaref.async
   (:require [clojure.spec.alpha :as s]
             [clojure.spec.gen.alpha :as gen])
-  (:import  [java.util.concurrent ThreadFactory]
-            [metaref.async Channel CSPChannel ChannelOps ChannelOps$AltResult]))
+  (:import [java.util.concurrent ThreadFactory]
+           [metaref.async
+            CSPChannel
+            Channel
+            ChannelOps
+            ChannelOps$AltResult]))
 
 (set! *warn-on-reflection* true)
 
@@ -121,65 +125,6 @@
   [bindings & body]
   `(go (loop ~bindings ~@body)))
 
-;; Notes on spec 
-;; spec'ing args is useful to be able to s/instrument the fn
-;; and have it check the args during dev and test time
-;; can catch malformed calls to the fn and typos
-;; spec'ing with fdef (with :args :ret and :fn) is useful for testing the
-;; _behavior_ of the fn at test time with s/excersice-fn, note that a 
-;; valid generator for the args is required for this to work
-
-;; The first is useful for both users and developers of a library, the second
-;; is mostly useful for developers of a library
-;; Although it requieres the user to have a proper test setup, or at least turn on
-;; instrumentation during dev time, this may need to be encoraged in the docs
-
-;; Another interesting option to help users is to generate clj-kondo annotations 
-;; from the spec, this way the user can get feedback from the editor
-;; without having to run the tests
-;; This is not a replacement for tests, but can be a nice addition
-;; At the moment the user would need to have clj-kondo installed and run a command
-;; to install custom config, or the lib could provide a utility fn to do this
-
-;; (defn chan-gen
-;;   "Generates a sequence of ready channels the length of which is between 1 and 5"
-;;   []
-;;   (gen/fmap (fn [n]
-;;               (let [chs (repeatedly n chan)]
-;;                 (run! #(go (>! % 1)) chs)
-;;                 chs))
-;;             (s/gen (s/int-in 1 5))))
-
-;; (s/def :select/chs (s/with-gen
-;;                      (s/coll-of channel? :min-count 1 :gen-max 5)
-;;                      chan-gen))
-
-;; (s/def :select/opts (s/nilable
-;;                      (s/map-of #{:priority :default} boolean?)))
-
-;; (s/def :select/args (s/cat :chs :select/chs :opts :select/opts))
-
-;; (s/fdef select!
-;;   :args :select/args
-;;   :ret (s/tuple any? (s/nilable channel?))
-;;   :fn #(let [chs (-> % :args :chs)
-;;              opts (-> % :args :opts)
-;;              [val port] (-> % :ret)]
-;;          (cond
-;;            ;;  return value can be nil only if default is true
-;;            (and (not (:default opts)) (nil? val))
-;;            false
-
-;;            ;; port can be nil only if default is true
-;;            (and (not (:default opts)) (nil? port))
-;;            false
-
-;;            ;; port has to be part of chs 
-;;            (and (not (nil? port)) (not (some #{port} chs)))
-;;            false
-
-;;            :else
-;;            true)))
 
 (defn select!
   "Takes a vector of either a channel or a vector of [channel value]
@@ -192,7 +137,7 @@
    instead of a random channel.
 
    If default is supplied, it will be returned if no channel is ready 
-   [default :default] is returned in this case" 
+   [default :default] is returned in this case"
   [ops & {:keys [priority default] :or {priority false default nil}}]
   (let [^ChannelOps$AltResult result (ChannelOps/alt ops priority (boolean default))
         value (.value result)
