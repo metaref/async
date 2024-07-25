@@ -1,6 +1,4 @@
 (ns metaref.async
-  (:require [clojure.spec.alpha :as s]
-            [clojure.spec.gen.alpha :as gen])
   (:import [java.util.concurrent ThreadFactory]
            [metaref.async
             CSPChannel
