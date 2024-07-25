@@ -8,8 +8,16 @@ uses Java's VirtualThread (Project Loom). The Channel and Select/Alt implementat
 To use `metaref.async` in your Clojure project, add the following dependency to your `deps.edn`:
 
 ```clojure
-{io.github.metaref/async {:git/tag "v0.0.1" :git/sha "7705c7d"}} ; Replace with the latest version
+io.github.metaref/async {:git/tag "v0.0.1" :git/sha "7705c7d"}}
 ```
+
+Before using the library, you must first prepare it with the following command:
+
+```bash
+clojure -X:deps prep
+```
+
+** Make sure you have at least Java 17 installed ** 
 
 ## Usage
 
