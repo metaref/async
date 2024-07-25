@@ -36,7 +36,7 @@
           :src-dirs ["src/clojure" "src/java"]))
 
 (defn ci "Run the CI pipeline of tests (and build the JAR)." [opts]
-  #_(test opts)
+  (test opts)
   (b/delete {:path "target"})
   (let [opts (jar-opts opts)]
     (println "\nCompiling...")
