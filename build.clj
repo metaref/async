@@ -4,15 +4,16 @@
             [deps-deploy.deps-deploy :as dd]))
 
 (def lib 'io.metaref/async)
-(def version "0.1.0")
+(def version "0.0.1")
 #_ ; alternatively, use MAJOR.MINOR.COMMITS:
 (def version (format "0.1.%s" (b/git-count-revs nil)))
 (def class-dir "target/classes")
+(def basis (delay (b/create-basis {:project "deps.edn"})))
 
 (defn compile-java [_]
   (b/javac {:src-dirs ["src/java"]
             :class-dir class-dir
-            :basis (b/create-basis {:project "deps.edn"})
+            :basis @basis
             :javac-opts ["--release" "21" "-proc:only"]}))
 
 (defn test "Run all the tests." [opts]
@@ -30,13 +31,12 @@
           :lib lib :version version
           :jar-file (format "target/%s-%s.jar" lib version)
           :scm {:tag (str "v" version)}
-          :basis (b/create-basis {})
+          :basis @basis
           :class-dir class-dir
           :target "target"
-          :src-dirs ["src/clojure" "src/java"]))
+          :src-dirs ["src/clojure"]))
 
-(defn ci "Run the CI pipeline of tests (and build the JAR)." [opts]
-  (test opts)
+(defn jar "Build the JAR." [opts] 
   (b/delete {:path "target"})
   (let [opts (jar-opts opts)]
     (println "\nCompiling...")
@@ -48,6 +48,11 @@
     (println "\nBuilding JAR...")
     (b/jar opts))
   opts)
+
+(defn ci "Run the CI pipeline of tests (and build the JAR)." [opts]
+  (println "\nRunning tests...")
+  (test opts)
+  (jar opts))
 
 (defn install "Install the JAR locally." [opts]
   (let [opts (jar-opts opts)]
