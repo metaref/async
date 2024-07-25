@@ -10,11 +10,15 @@
 (def class-dir "target/classes")
 (def basis (delay (b/create-basis {:project "deps.edn"})))
 
+(defn clean "Clean target folder" [_]
+  (b/delete {:path "target"}))
+
 (defn compile-java [_]
+  (clean nil)
   (b/javac {:src-dirs ["src/java"]
             :class-dir class-dir
             :basis @basis
-            :javac-opts ["--release" "21" "-proc:only"]}))
+            :javac-opts ["--release" "21" "-proc:full"]}))
 
 (defn test "Run all the tests." [opts]
   (let [basis    (b/create-basis {:aliases [:test]})
@@ -37,7 +41,6 @@
           :src-dirs ["src/clojure"]))
 
 (defn jar "Build the JAR." [opts] 
-  (b/delete {:path "target"})
   (let [opts (jar-opts opts)]
     (println "\nCompiling...")
     (compile-java nil)
