@@ -17,7 +17,7 @@ Before using the library, you must first prepare it with the following command:
 clojure -X:deps prep
 ```
 
-** Make sure you have at least Java 17 installed ** 
+** Make sure you have at least Java 21 installed ** 
 
 ## Examples
 
