@@ -24,6 +24,11 @@ public class CSPChannel<E> implements Channel<E> {
     }
 
     @Override
+    public int capacity() {
+        return capacity;
+    }
+
+    @Override
     public boolean put(E e) {
         lock.lock();
         try {
