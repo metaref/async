@@ -1,5 +1,5 @@
 (ns metaref.examples.tour
-  (:require [metaref.async :as async :refer [<! >! chan go select!]]
+  (:require [metaref.async :as async :refer [<! >! chan go select! capacity]]
             :reload))
 
 ;; https://go.dev/tour/concurrency/1
@@ -44,7 +44,8 @@
 
 (comment
 
-  (example-3))
+  (example-3)
+  )
 
 (defn fib [n ch]
   (loop [x 0
@@ -57,9 +58,8 @@
         (recur y (+ x y) (dec n))))))
 
 (defn example-4 []
-  (let [n  10
-        ch (chan n)]
-    (go (fib n ch))
+  (let [ch (chan 10)]
+    (go (fib (capacity ch) ch))
     (loop [val (<! ch)]
       (when val
         (println val)
@@ -67,10 +67,9 @@
 
 ;; Same as example-4 but using async/for-each
 (defn example-4-2 []
-  (let [n  10
-        ch (chan 10)]
+  (let [ch (chan 10)]
     (go
-      (fib n ch))
+      (fib (capacity ch) ch))
     (async/for-each [val ch]
       (println val))))
 
