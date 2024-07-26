@@ -53,6 +53,11 @@
   [ch]
   (.isClosed ^Channel ch))
 
+(defn capacity
+  "Returns the capacity of the channel."
+  [ch]
+  (.capacity ^Channel ch))
+
 (defonce ^:private ^ThreadFactory vthread-factory
   (.. Thread
       (ofVirtual)
@@ -73,7 +78,7 @@
    The thread will be named 'metaref-async-worker-<n>', where <n> is a number
    "
   [f]
-  (let [ch     (chan 1)
+  (let [ch     (chan)
         exec-f (bound-fn []
                  (try
                    (let [result (f)]
@@ -108,7 +113,6 @@
   [& body]
   `(vthread-call (fn [] ~@body)))
 
-
 (defn timeout
   "Returns a channel which will close after the given number of milliseconds."
   [ms]
@@ -122,7 +126,6 @@
   "Like (go (loop ...))"
   [bindings & body]
   `(go (loop ~bindings ~@body)))
-
 
 (defn select!
   "Takes a vector of either a channel or a vector of [channel value]
