@@ -2,25 +2,6 @@
   (:require [metaref.async :as async :refer [<! >! chan go go-loop select! timeout]]
             :reload))
 
-
-(comment
-
-  (let [c1 (chan)]
-    (go (>! c1 1))
-    (Thread/sleep 1)
-    (.tryTake c1))
-
-  (let [c1 (chan)
-        c2 (chan)]
-    (go (>! c1 1))
-    (go (>! c2 2))
-    (println "before select")
-    (select! [c1 c2]))
-  
-  )
-
-
-
 ;; https://go.dev/talks/2012/concurrency.slide#1
 
 ;; This pattern consist of a function that returns a channel
@@ -136,14 +117,6 @@
     (println "You're both boring. I'm leaving.")))
 
 (comment
-
-  (let [c1 (chan)
-        c2 (chan)]
-    (go (>! c1 1))
-    (go (>! c2 2))
-    (println "before select")
-    (select! [c1 c2]))
-
 
   (example-5)
   )
@@ -268,22 +241,4 @@
     (time
      (example-10)))
 
-  (System/gc)
-;; 100001
-;; "Elapsed time: 1568.687967 msecs"
-;; 100001
-;; "Elapsed time: 1361.467567 msecs"
-;; 100001
-;; "Elapsed time: 1645.39385 msecs"
-;; 100001
-;; "Elapsed time: 1661.914502 msecs"
-;; 100001
-;; "Elapsed time: 1713.627052 msecs"
-;; nil
-
-  (format "%f us" (float (* (/ 1500 100001) 1000)))
-  ;; => "14.999850 us"
-  ;; => ~15 us per vthread (hmm should be arround 0.2 us)
-  ;; "slowest possible" task switching is ~ 1 us
-  ;, fastest IO is 4 us
   )

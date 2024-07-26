@@ -44,69 +44,41 @@
 
 (comment
 
-  (example-3)
-  )
-
-(defmacro with-std-out [& body]
-  `(locking System/out
-     ~@body))
-
-(defn safe-println [& more]
-  (.write *out* (str (clojure.string/join " " more) "\n")))
+  (example-3))
 
 (defn fib [n ch]
   (loop [x 0
          y 1
          n n]
-    #_(with-std-out
-        (println "fib n " n))
     (if (zero? n)
       (async/close! ch)
       (do
-        (.put ch x)
+        (>! ch x)
         (recur y (+ x y) (dec n))))))
 
 (defn example-4 []
-  (let [ch (chan 3)]
-    (go (fib 3 ch))
+  (let [n  10
+        ch (chan n)]
+    (go (fib n ch))
     (loop [val (<! ch)]
       (when val
-        (safe-println "ex 4 val " val)
-        (recur (<! ch))))
-    (safe-println "done")))
+        (println val)
+        (recur (<! ch))))))
 
+;; Same as example-4 but using async/for-each
 (defn example-4-2 []
-  (let [r  (atom [])
+  (let [n  10
         ch (chan 10)]
     (go
-      (fib 10 ch))
+      (fib n ch))
     (async/for-each [val ch]
-                      (swap! r conj val))
-    #_(loop [val (.take ch)]
-      (when val
-        (swap! r conj val)
-        (recur (.take ch))))
-    @r))
+      (println val))))
 
 (comment
 
   (example-4)
-
-  (try
-    (let [*failed (atom 0)]
-      (dotimes [i 500]
-        (when-not (= 10 (count (example-4-2)))
-          (swap! *failed inc)
-          #_(safe-println "#### failed ####" i)))
-      (when (pos? @*failed)
-        (safe-println "#### failed #### times " @*failed)))
-
-    (catch InterruptedException _t
-      (safe-println "#### main interrupted wtff ####")))
-
-  (System/gc))
-
-
+  (example-4-2)
+  )
 
 (defn fib2 [ch <quit]
   (loop [x 0
@@ -128,7 +100,6 @@
 
 (comment
   (example-5)
-
   )
 
 (defn tick [ms]
@@ -160,6 +131,4 @@
 
 (comment
   (example-6)
-
   )
-
