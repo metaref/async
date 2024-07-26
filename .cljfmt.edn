@@ -1,0 +1,2 @@
+{:extra-indents {async/for-each [[:block 1]]}
+ :alias-map {async metaref.async}}
